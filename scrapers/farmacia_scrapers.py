@@ -458,25 +458,54 @@ async def scrape_farmaciauniversal_playwright(keyword: str, max_items: int = 15)
         return []
 
 # =============================================
-# FUNCIÓN PRINCIPAL DE COMPARACIÓN
+# FUNCIÓN PRINCIPAL DE COMPARACIÓN (VERSIÓN SECUENCIAL)
 # =============================================
 async def comparar_precios_playwright(keyword: str, max_items: int = 15):
-    """Compara precios en las 5 farmacias principales del Perú"""
+    """
+    Compara precios en las 5 farmacias principales del Perú
+    VERSIÓN SECUENCIAL: Ejecuta un scraper después del otro
+    para no saturar la RAM del servidor gratuito.
+    """
     url_inka = f"https://inkafarma.pe/buscador?keyword={quote_plus(keyword)}"
     url_mi = f"https://www.mifarma.com.pe/buscador?keyword={quote_plus(keyword)}"
 
-    # Ejecutar todos los scrapers en paralelo
-    resultados = await asyncio.gather(
-        scrape_farmacia_playwright(url_inka, "Inkafarma", max_items),
-        scrape_farmacia_playwright(url_mi, "Mifarma", max_items),
-        scrape_boticasperu_playwright(keyword, max_items),
-        scrape_boticasysalud_playwright(keyword, max_items),
-        scrape_farmaciauniversal_playwright(keyword, max_items)
-    )
-
-    # Combinar todos los productos
     todos_productos = []
-    for lista_productos in resultados:
-        todos_productos.extend(lista_productos)
 
+    # Ejecutamos uno por uno
+    try:
+        print("--- Inciando Scraper 1/5: Inkafarma ---")
+        r1 = await scrape_farmacia_playwright(url_inka, "Inkafarma", max_items)
+        todos_productos.extend(r1)
+    except Exception as e:
+        print(f"--- ❌ Error en Scraper 1 (Inkafarma): {e} ---")
+
+    try:
+        print("--- Inciando Scraper 2/5: Mifarma ---")
+        r2 = await scrape_farmacia_playwright(url_mi, "Mifarma", max_items)
+        todos_productos.extend(r2)
+    except Exception as e:
+        print(f"--- ❌ Error en Scraper 2 (Mifarma): {e} ---")
+
+    try:
+        print("--- Inciando Scraper 3/5: BoticasPeru ---")
+        r3 = await scrape_boticasperu_playwright(keyword, max_items)
+        todos_productos.extend(r3)
+    except Exception as e:
+        print(f"--- ❌ Error en Scraper 3 (BoticasPeru): {e} ---")
+
+    try:
+        print("--- Inciando Scraper 4/5: Boticas y Salud ---")
+        r4 = await scrape_boticasysalud_playwright(keyword, max_items)
+        todos_productos.extend(r4)
+    except Exception as e:
+        print(f"--- ❌ Error en Scraper 4 (Boticas y Salud): {e} ---")
+
+    try:
+        print("--- Inciando Scraper 5/5: Farmacia Universal ---")
+        r5 = await scrape_farmaciauniversal_playwright(keyword, max_items)
+        todos_productos.extend(r5)
+    except Exception as e:
+        print(f"--- ❌ Error en Scraper 5 (Farmacia Universal): {e} ---")
+
+    print("--- ✅ Búsqueda secuencial completada ---")
     return todos_productos
