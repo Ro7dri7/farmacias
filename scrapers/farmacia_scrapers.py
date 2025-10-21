@@ -27,8 +27,19 @@ def limpiar_precio(texto: str) -> str:
 
     return "No disponible"
 
+# Helper (ayudante) asíncrono para bloquear recursos
+async def block_resources_async(route):
+    """Bloquea la carga de imágenes, CSS, fuentes y medios"""
+    if route.request.resource_type in ["image", "stylesheet", "font", "media"]:
+        await route.abort()
+    else:
+        await route.continue_()
+
 async def crear_contexto_navegador(playwright_instance):
-    """Lanza el navegador y crea un contexto con configuración anti-bot."""
+    """
+    Lanza el navegador y crea un contexto con configuración anti-bot
+    Y CON BLOQUEO DE RECURSOS.
+    """
     browser = await playwright_instance.chromium.launch(
         headless=True,
         args=[
@@ -44,6 +55,12 @@ async def crear_contexto_navegador(playwright_instance):
         java_script_enabled=True,
         bypass_csp=True
     )
+
+    # --- ¡ESTA ES LA LÍNEA MÁGICA DE OPTIMIZACIÓN! ---
+    # Intercepta todas las peticiones y aplica la función de bloqueo
+    await context.route("**/*", block_resources_async)
+    # --------------------------------------------------
+
     await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     return browser, context
 
