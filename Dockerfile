@@ -1,7 +1,7 @@
 # 1. USAR LA IMAGEN OFICIAL DE PLAYWRIGHT
 # Esta imagen ya tiene Python 3.10+, Playwright y los navegadores (Chromium, etc.)
 # Usamos "jammy" que es la versión basada en Ubuntu 22.04
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.55.0-jammy
 
 # 2. Establecer el directorio de trabajo
 WORKDIR /app
