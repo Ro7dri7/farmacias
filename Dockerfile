@@ -1,43 +1,24 @@
-# 1. Imagen base de Python
-FROM python:3.10-slim
+# 1. USAR LA IMAGEN OFICIAL DE PLAYWRIGHT
+# Esta imagen ya tiene Python 3.10+, Playwright y los navegadores (Chromium, etc.)
+# Usamos "jammy" que es la versión basada en Ubuntu 22.04
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
-# 2. Instalar dependencias del sistema para Playwright
-# Estas son las librerías de Linux que Chromium necesita para correr
-RUN apt-get update && apt-get install -y \
-    libnss3 \
-    libnspr4 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libatspi2.0-0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    # Limpiar el cache de apt
-    && rm -rf /var/lib/apt/lists/*
-
-# 3. Establecer el directorio de trabajo dentro del contenedor
+# 2. Establecer el directorio de trabajo
 WORKDIR /app
 
-# 4. Copiar e instalar las dependencias de Python
+# 3. Copiar el archivo de requisitos
 COPY requirements.txt .
+
+# 4. Instalar TUS OTRAS dependencias (FastAPI, uvicorn, etc.)
+# Playwright ya viene instalado, pero pip es lo suficientemente inteligente
+# para saltárselo si ya está en la versión correcta.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Instalar el navegador Chromium y sus dependencias de OS
-RUN playwright install chromium --with-deps
-
-# 6. Copiar todo el código de tu backend (app.py, carpeta /scrapers)
+# 5. Copiar TODO el resto de tu código (app.py, carpeta scrapers/, etc.)
 COPY . .
 
-# 7. Comando para ejecutar la aplicación
-# Railway asignará un $PORT automáticamente.
-# Uvicorn correrá el objeto 'app' (FastAPI) desde el archivo 'app.py'
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port $PORT"]
+# 6. Exponer el puerto 8000 (el mismo que usa FastAPI)
+EXPOSE 8000
+
+# 7. El comando para iniciar tu servidor FastAPI
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

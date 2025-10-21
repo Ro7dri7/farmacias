@@ -1,99 +1,88 @@
-import asyncio
-import sys
-
-# -----------------------------------------------------------------
-# SOLUCIÓN para NotImplementedError en Windows
-# -----------------------------------------------------------------
-# Esto fuerza a asyncio a usar un "event loop" compatible 
-# con Playwright en Windows.
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-# -----------------------------------------------------------------
-
-
-# --- El resto de tu código ---
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-# 'sys' ya fue importado arriba
+import time
 
-# -----------------------------------------------------------------
-# IMPORTANTE: Importa tu función desde la carpeta 'scrapers'
-# -----------------------------------------------------------------
-try:
-    from scrapers.farmacia_scrapers import comparar_precios_playwright
-except ImportError:
-    print("Error: No se pudo importar 'comparar_precios_playwright'.")
-    print("Asegúrate de tener la carpeta 'scrapers' con el archivo 'farmacia_scrapers.py' y un '__init__.py' vacío.")
-    sys.exit(1)
-
+# --- ¡LA CONEXIÓN CLAVE! ---
+# Importamos tu función principal desde el archivo en la carpeta /scrapers
+from scrapers.farmacia_scrapers import comparar_precios_playwright
+# --------------------------------
 
 app = FastAPI(
     title="API de Scraper de Farmacias",
-    description="Una API para comparar precios de farmacias en Perú.",
+    description="Una API que compara precios de productos en farmacias peruanas usando Playwright.",
     version="1.0.0"
 )
 
-# --- Configuración de CORS ---
-# Permite que tu frontend (en otro dominio) se comunique con este backend.
+# --- CONFIGURACIÓN DE CORS ---
+# Esto es VITAL para que tu frontend (React, Vue, etc.)
+# pueda conectarse a esta API.
 origins = [
-    "*",  # Permite todo para desarrollo.
-    # En producción, deberías poner aquí la URL de tu frontend:
-    # "https://mi-frontend-123.up.railway.app"
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173", # Puerto común de Vite/React
+    "*"  # Permite todo (fácil para probar, pero más restrictivo en producción)
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"], # Permite GET, POST, etc.
-    allow_headers=["*"], # Permite cualquier header
+    allow_methods=["*"],  # Permite todos los métodos (GET, POST)
+    allow_headers=["*"],  # Permite todos los headers
 )
+# -----------------------------
 
-
-# --- Endpoints de la API ---
 
 @app.get("/")
 def read_root():
-    """Endpoint raíz para verificar que la API está viva."""
-    return {"status": "API del scraper de farmacias funcionando."}
+    """Ruta raíz para verificar que el servidor está funcionando."""
+    return {"status": "ok", "message": "Bienvenido al Scraper API de Farmacias"}
 
 
-@app.get("/api/buscar")
+# --- ESTE ES TU ENDPOINT PRINCIPAL ---
+@app.get("/buscar_productos")
 async def buscar_productos(keyword: str):
     """
-    Endpoint principal para buscar productos.
-    Se usa así: /api/buscar?keyword=panadol
+    Recibe un 'keyword' (término de búsqueda) y devuelve una lista 
+    de productos encontrados en las diferentes farmacias.
     """
-    if not keyword or len(keyword.strip()) < 2:
-        raise HTTPException(
-            status_code=400, 
-            detail="El parámetro 'keyword' es requerido y debe tener al menos 2 caracteres."
-        )
     
-    print(f"--- Iniciando búsqueda para: {keyword} ---")
+    if not keyword or not keyword.strip():
+        raise HTTPException(status_code=400, detail="El parámetro 'keyword' es requerido y no puede estar vacío.")
+        
+    print(f"--- 🚀 INICIANDO BÚSQUEDA PARA: {keyword} ---")
+    start_time = time.time()
     
     try:
-        # Limitamos a 10 items por farmacia para que la respuesta
-        # sea rápida y no cause un 'timeout' en el servidor.
-        resultados = await comparar_precios_playwright(keyword, max_items=10)
+        # Llamamos a tu función de scraping asíncrona
+        # Esta es la función que lanza los 5 scrapers en paralelo
+        resultados = await comparar_precios_playwright(keyword)
         
-        print(f"--- Búsqueda completada. {len(resultados)} productos encontrados. ---")
+        end_time = time.time()
+        total_time = end_time - start_time
+        print(f"--- ✅ BÚSQUEDA FINALIZADA. {len(resultados)} productos encontrados en {total_time:.2f} segundos. ---")
         
         if not resultados:
-            return {"data": [], "message": "No se encontraron productos."}
-            
-        return {"data": resultados}
-    
+            # Si la lista está vacía, igual damos una respuesta exitosa
+            return {"data": [], "message": "No se encontraron productos para este término."}
+        
+        return {"data": resultados, "message": f"Se encontraron {len(resultados)} productos."}
+
     except Exception as e:
-        print(f"--- ERROR GRAVE DURANTE EL SCRAPING: {e} ---")
+        end_time = time.time()
+        total_time = end_time - start_time
+        print(f"--- ❌ ERROR GRAVE DURANTE EL SCRAPING: {e} (después de {total_time:.2f} segundos) ---")
         # Informa al cliente que algo salió mal en el servidor
         raise HTTPException(
-            status_code=500, 
-            detail=f"Ocurrió un error interno en el servidor: {e}"
+            status_code=500,
+            detail=f"Ocurrió un error interno en el servidor: {str(e)}"
         )
+# --------------------------------------
+
 
 # Esto solo se usa si ejecutas `python app.py` localmente
+# Railway usará el comando del Dockerfile (CMD)
 if __name__ == "__main__":
     print("Iniciando servidor localmente en http://localhost:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
